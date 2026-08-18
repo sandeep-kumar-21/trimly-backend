@@ -277,40 +277,127 @@ Interactive Swagger OpenAPI 3.0 documentation is served at `/api/docs` when the 
 ```text
 trimly-backend/
 ├── src/
-│   ├── common/                      # Shared cross-cutting concerns
-│   │   ├── decorators/              # Custom param decorators (@GetUser, @Public)
-│   │   ├── filters/                 # Global exception filter (HttpExceptionFilter)
-│   │   ├── guards/                  # Auth guards (JwtAuthGuard, OptionalJwtAuthGuard)
-│   │   ├── interceptors/            # Logging and request timing interceptor
-│   │   ├── redis/                   # Redis client module & connection provider
-│   │   └── utils/                   # Base62 encode/decode utilities
-│   ├── config/                      # Configuration loaders & Joi validation schema
-│   │   ├── configuration.ts         # Environment variable mapping
-│   │   ├── database.config.ts       # Mongoose connection options
-│   │   ├── redis.config.ts          # Redis/Upstash connection factory
-│   │   └── validation.schema.ts     # Joi environment validation schema
-│   ├── database/                    # Root schemas (Atomic counters)
-│   │   └── counter.schema.ts        # Atomic sequence counter for Base62 IDs
-│   ├── modules/                     # Domain modules
-│   │   ├── analytics/               # Click analytics aggregations & click schema
-│   │   ├── auth/                    # Registration, JWT login, & Passport strategy
-│   │   ├── campaigns/               # Campaign aggregation pipelines & schema
-│   │   ├── health/                  # Health check & uptime cron probe endpoint
-│   │   ├── qrcodes/                 # QR styling engine, SVG/PNG rendering, & schema
-│   │   ├── queue/                   # BullMQ queues & worker processors
-│   │   ├── redirect/                # Hot-path caching redirect controller & service
-│   │   ├── url/                     # Short URL CRUD, password verify, & schema
-│   │   └── users/                   # Profile management, export, & deletion
-│   ├── app.module.ts                # Root application module
-│   └── main.ts                      # Bootstrap entrypoint, middleware, Swagger, CORS
-├── test/                            # E2E test suites and Jest configuration
-│   ├── app.e2e-spec.ts              # Root HTTP E2E tests
-│   ├── jest-e2e.json                # Jest E2E configuration
-│   └── qrcodes.e2e-spec.ts          # QR generation E2E tests
-├── .env.example                     # Environment template
-├── nest-cli.json                    # NestJS CLI configuration
-├── package.json                     # Dependencies and scripts
-└── tsconfig.json                    # TypeScript compiler options
+│   ├── common/                                      # Shared cross-cutting modules, utilities, & guards
+│   │   ├── decorators/                              # Custom parameter and route decorators
+│   │   │   ├── get-user.decorator.ts                # Extracts authenticated user payload from request
+│   │   │   └── public.decorator.ts                  # Marks endpoints as publicly accessible
+│   │   ├── filters/                                 # Global exception handling
+│   │   │   └── http-exception.filter.ts             # Standardized JSON error response formatter
+│   │   ├── guards/                                  # Authentication and route security guards
+│   │   │   ├── jwt-auth.guard.ts                    # Enforces valid Bearer JWT tokens
+│   │   │   └── optional-jwt-auth.guard.ts           # Optional JWT extractor for anonymous/authenticated flows
+│   │   ├── interceptors/                            # Request/response interceptors
+│   │   │   └── logging.interceptor.ts               # Request duration timing and HTTP logging
+│   │   ├── redis/                                   # Redis client connection module
+│   │   │   ├── redis.module.ts                      # Global Redis NestJS module
+│   │   │   └── redis.provider.ts                    # ioredis client factory provider token
+│   │   └── utils/                                   # General utility functions
+│   │       ├── base62.util.spec.ts                  # Base62 encoder/decoder unit tests
+│   │       └── base62.util.ts                       # Base62 conversion algorithm for sequential numeric IDs
+│   ├── config/                                      # Configuration loaders & Joi validation schemas
+│   │   ├── configuration.ts                         # Environment variable mapping function
+│   │   ├── database.config.ts                       # Mongoose connection options factory
+│   │   ├── redis.config.ts                          # Dynamic Redis/Upstash connection provider
+│   │   └── validation.schema.ts                     # Joi validation schema for environment variables
+│   ├── database/                                    # Database schemas
+│   │   └── counter.schema.ts                        # Atomic sequence counter schema for Base62 tokens
+│   ├── modules/                                     # Domain feature modules
+│   │   ├── analytics/                               # Click analytics and telemetry aggregations
+│   │   │   ├── schemas/                             # Analytics document schemas
+│   │   │   │   └── click.schema.ts                  # Raw click-stream event schema (IP hash, device, geo)
+│   │   │   ├── analytics.controller.ts              # Overall and per-link analytics REST endpoints
+│   │   │   ├── analytics.module.ts                  # Analytics module definition
+│   │   │   ├── analytics.service.spec.ts            # Analytics service unit tests
+│   │   │   └── analytics.service.ts                 # Aggregation pipelines for time-series and breakdowns
+│   │   ├── auth/                                    # Authentication and user registration
+│   │   │   ├── dto/                                 # Data transfer objects
+│   │   │   │   ├── login.dto.ts                     # Login credentials request validation schema
+│   │   │   │   └── register.dto.ts                  # Account registration request validation schema
+│   │   │   ├── strategies/                          # Passport strategies
+│   │   │   │   └── jwt.strategy.ts                  # Passport-JWT token validation strategy
+│   │   │   ├── auth.controller.ts                   # Login, register, and /me profile endpoints
+│   │   │   ├── auth.module.ts                       # Auth module definition and JWT configuration
+│   │   │   ├── auth.service.spec.ts                 # Auth service unit tests
+│   │   │   └── auth.service.ts                      # Bcrypt password comparison and JWT token issuance
+│   │   ├── campaigns/                               # Marketing campaigns and multi-channel attribution
+│   │   │   ├── dto/                                 # Data transfer objects
+│   │   │   │   ├── create-campaign.dto.ts           # Campaign creation payload validation
+│   │   │   │   └── update-campaign.dto.ts           # Campaign update payload validation
+│   │   │   ├── schemas/                             # Campaign document schemas
+│   │   │   │   └── campaign.schema.ts               # Campaign document schema (name, description, user)
+│   │   │   ├── campaigns.controller.ts              # Campaign CRUD & channel aggregation endpoints
+│   │   │   ├── campaigns.module.ts                  # Campaigns module definition
+│   │   │   ├── campaigns.service.spec.ts            # Campaigns service unit tests
+│   │   │   └── campaigns.service.ts                 # Aggregated stats calculation with 120s Redis cache
+│   │   ├── health/                                  # Health check & uptime monitoring
+│   │   │   ├── health.controller.ts                 # Health probe endpoint for MongoDB and Redis status
+│   │   │   └── health.module.ts                     # Health module definition
+│   │   ├── qrcodes/                                 # QR Code studio, styling, and vector rendering
+│   │   │   ├── dto/                                 # Data transfer objects
+│   │   │   │   ├── create-qrcode.dto.ts             # QR configuration creation payload
+│   │   │   │   ├── duplicate-qrcode.dto.ts          # QR design duplication payload
+│   │   │   │   └── update-qrcode.dto.ts             # QR visibility update payload
+│   │   │   ├── schemas/                             # QR code document schemas
+│   │   │   │   └── qrcode.schema.ts                 # QR styling schema (dots, corners, colors, logo)
+│   │   │   ├── qrcodes.controller.ts                # QR generation, fetch SVG/PNG, and duplicate endpoints
+│   │   │   ├── qrcodes.module.ts                    # QR codes module definition
+│   │   │   ├── qrcodes.service.spec.ts              # QR codes service unit tests
+│   │   │   └── qrcodes.service.ts                   # node-canvas/jsdom SVG/PNG render engine with caching
+│   │   ├── queue/                                   # BullMQ async job queues and worker processors
+│   │   │   ├── click.processor.ts                   # Worker processor for user-agent parsing and geo-lookup
+│   │   │   ├── click.queue.ts                       # BullMQ producer for click events
+│   │   │   ├── delete-user-account.processor.ts     # Worker processor for cascade account purge
+│   │   │   ├── export-user-data.processor.ts        # Worker processor for data export JSON generation
+│   │   │   ├── queue.module.ts                      # BullMQ dynamic module with in-process worker toggles
+│   │   │   ├── user-delete.queue.ts                 # BullMQ producer for account deletion jobs
+│   │   │   └── user-export.queue.ts                 # BullMQ producer for account data export jobs
+│   │   ├── redirect/                                # Hot-path URL redirection engine
+│   │   │   ├── redirect.controller.ts               # Root redirection controller
+│   │   │   ├── redirect.module.ts                   # Redirect module definition
+│   │   │   ├── redirect.service.spec.ts             # Redirect service unit tests
+│   │   │   └── redirect.service.ts                  # Cache-first Redis lookup & BullMQ click dispatch
+│   │   ├── url/                                     # Short URL management and lifecycle
+│   │   │   ├── dto/                                 # Data transfer objects
+│   │   │   │   ├── bulk-hide.dto.ts                 # Bulk hide/unhide links request payload
+│   │   │   │   ├── bulk-tags.dto.ts                 # Bulk add/remove tags request payload
+│   │   │   │   ├── create-url.dto.ts                # URL creation payload (longUrl, customAlias, UTM)
+│   │   │   │   ├── edit-back-half.dto.ts            # Custom back-half alias cloning payload
+│   │   │   │   ├── update-url.dto.ts                # URL update payload (target, expiry, tags)
+│   │   │   │   └── verify-password.dto.ts           # Password verification payload for protected links
+│   │   │   ├── schemas/                             # URL document schemas
+│   │   │   │   └── url.schema.ts                    # Short URL schema (shortCode, longUrl, tags, UTM, auth)
+│   │   │   ├── url.controller.ts                    # URL CRUD, bulk tags/hide, and password endpoints
+│   │   │   ├── url.module.ts                        # URL module definition
+│   │   │   ├── url.service.spec.ts                  # URL service unit tests
+│   │   │   └── url.service.ts                       # Base62 allocation, link lifecycle, and Redis invalidation
+│   │   └── users/                                   # User account management and preferences
+│   │       ├── dto/                                 # Data transfer objects
+│   │       │   ├── change-password.dto.ts           # Password change request validation
+│   │       │   ├── delete-account.dto.ts            # Account deletion confirmation payload
+│   │       │   ├── update-preferences.dto.ts        # Theme and timezone preference payload
+│   │       │   └── update-profile.dto.ts            # Profile name and avatar update payload
+│   │       ├── schemas/                             # User document schemas
+│   │       │   └── user.schema.ts                   # User account schema with password serialization filter
+│   │       ├── users.controller.ts                  # Profile, preferences, password, export, & delete endpoints
+│   │       ├── users.module.ts                      # Users module definition
+│   │       └── users.service.ts                     # User persistence, export scheduling, and deletion
+│   ├── app.controller.spec.ts                       # App root controller unit tests
+│   ├── app.controller.ts                            # Root greeting controller
+│   ├── app.module.ts                                # Root application module registering dependencies
+│   ├── app.service.ts                               # App root service
+│   └── main.ts                                      # Bootstrap entrypoint, middleware, Swagger, CORS setup
+├── test/                                            # End-to-end (E2E) integration test suites
+│   ├── app.e2e-spec.ts                              # HTTP root and redirection E2E tests
+│   ├── jest-e2e.json                                # Jest E2E configuration settings
+│   └── qrcodes.e2e-spec.ts                          # QR Code generation and export E2E tests
+├── .env.example                                     # Environment variables configuration template
+├── .gitignore                                       # Git ignore rules for dependencies and build artifacts
+├── .prettierrc                                      # Prettier code formatting rules
+├── eslint.config.mjs                                # ESLint configuration
+├── nest-cli.json                                    # NestJS CLI configuration
+├── package.json                                     # NPM dependencies, scripts, and package metadata
+├── tsconfig.build.json                              # TypeScript build configuration
+└── tsconfig.json                                    # TypeScript compiler configuration
 ```
 
 ---
