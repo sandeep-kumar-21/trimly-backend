@@ -60,14 +60,25 @@ async function bootstrap() {
           const xForwardedFor = req.headers['x-forwarded-for'] as string;
           const clientIp = xForwardedFor
             ? xForwardedFor.split(',')[0].trim()
-            : req.socket.remoteAddress || '127.0.0.1';
-          const referrer = req.get('referer') || req.get('referrer') || null;
-          const userAgent = req.get('user-agent') || null;
+            : req.socket?.remoteAddress || '127.0.0.1';
+          const referrer = (req.headers['referer'] as string) || (req.headers['referrer'] as string) || null;
+          const userAgent = (req.headers['user-agent'] as string) || null;
+          const query = req.query || {};
+          const isQrScan = query.qr === '1' || query.scan === '1' || query.source === 'qr';
+          const utms = {
+            utmSource: query.utm_source || null,
+            utmMedium: query.utm_medium || null,
+            utmCampaign: query.utm_campaign || null,
+            utmTerm: query.utm_term || null,
+            utmContent: query.utm_content || null,
+          };
           const result = await redirectService.getLongUrlAndLogClick(
             code,
             clientIp,
             referrer,
             userAgent,
+            isQrScan,
+            utms,
           );
           if (typeof result === 'object' && result.passwordProtected) {
             return res.redirect(302, result.redirectUrl);
@@ -106,8 +117,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(port);
-  logger.log(`Application running on port ${port}`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`Application running on port ${port} (0.0.0.0)`);
   logger.log(`Swagger documentation available at http://localhost:${port}/api/docs`);
 }
 

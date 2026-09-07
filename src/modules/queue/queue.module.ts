@@ -8,6 +8,8 @@ import { UserExportQueue } from './user-export.queue';
 import { UserDeleteQueue } from './user-delete.queue';
 import { ExportUserDataProcessor } from './export-user-data.processor';
 import { DeleteUserAccountProcessor } from './delete-user-account.processor';
+import { UrlMetadataQueue } from './url-metadata.queue';
+import { UrlMetadataProcessor } from './url-metadata.processor';
 import { Click, ClickSchema } from '../analytics/schemas/click.schema';
 import { Url, UrlSchema } from '../url/schemas/url.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -27,9 +29,14 @@ export class QueueModule {
       `Initializing QueueModule. BullMQ Worker In-Process: ${isWorkerEnabled ? 'ENABLED' : 'DISABLED'}`,
     );
 
-    const providers: any[] = [ClickQueue, UserExportQueue, UserDeleteQueue];
+    const providers: any[] = [ClickQueue, UserExportQueue, UserDeleteQueue, UrlMetadataQueue];
     if (isWorkerEnabled) {
-      providers.push(ClickProcessor, ExportUserDataProcessor, DeleteUserAccountProcessor);
+      providers.push(
+        ClickProcessor,
+        ExportUserDataProcessor,
+        DeleteUserAccountProcessor,
+        UrlMetadataProcessor,
+      );
     }
 
     return {
@@ -55,10 +62,11 @@ export class QueueModule {
           { name: 'clicks' },
           { name: 'export-user-data' },
           { name: 'delete-user-account' },
+          { name: 'url-metadata' },
         ),
       ],
       providers,
-      exports: [ClickQueue, UserExportQueue, UserDeleteQueue, BullModule],
+      exports: [ClickQueue, UserExportQueue, UserDeleteQueue, UrlMetadataQueue, BullModule],
     };
   }
 }

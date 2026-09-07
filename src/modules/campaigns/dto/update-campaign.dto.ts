@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateCampaignDto {
   @ApiPropertyOptional({ example: 'Updated Campaign Name', description: 'Updated campaign name' })
@@ -13,4 +13,13 @@ export class UpdateCampaignDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @ApiPropertyOptional({
+    example: ['email', 'social', 'sms', 'paid'],
+    description: 'Updated list of marketing channels for this campaign',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  channels?: string[];
 }

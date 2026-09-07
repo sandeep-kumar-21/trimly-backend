@@ -1,5 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUrl, IsOptional, IsDateString, IsString, IsMongoId, IsArray, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsUrl,
+  IsOptional,
+  IsDateString,
+  IsString,
+  IsMongoId,
+  IsArray,
+  IsBoolean,
+  ArrayMaxSize,
+  MaxLength,
+  MinLength,
+  Matches,
+} from 'class-validator';
 
 export class UpdateUrlDto {
   @ApiPropertyOptional({ example: 'https://new-destination.com', description: 'Updated destination URL' })
@@ -27,10 +40,24 @@ export class UpdateUrlDto {
   @IsOptional()
   channel?: string | null;
 
-  @ApiPropertyOptional({ example: ['updated', 'tags'], description: 'Updated tags list' })
+  @ApiPropertyOptional({ example: ['updated', 'tags'], description: 'Updated tags list (max 10 tags, max 7 chars each)' })
   @IsOptional()
-  @IsArray()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+          .map((t) => (typeof t === 'string' ? t.replace(/[^a-zA-Z0-9_-]/g, '').trim().slice(0, 7) : t))
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray({ message: 'tags must be an array of strings' })
+  @ArrayMaxSize(10, { message: 'A link cannot have more than 10 tags' })
   @IsString({ each: true })
+  @MaxLength(7, { each: true, message: 'Each tag cannot exceed 7 characters' })
+  @MinLength(1, { each: true, message: 'Tag cannot be empty' })
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    each: true,
+    message: 'Tags can only contain alphanumeric characters, hyphens, and underscores',
+  })
   tags?: string[];
 
   @ApiPropertyOptional({ example: 'newpassword123', description: 'Set or update password protection (or null to remove)' })

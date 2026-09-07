@@ -1,5 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUrl, IsNotEmpty, IsOptional, IsString, IsDateString, Matches, IsMongoId } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsUrl,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsDateString,
+  Matches,
+  IsMongoId,
+  IsArray,
+  ArrayMaxSize,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateUrlDto {
   @ApiProperty({ example: 'https://example.com/very/long/url/path', description: 'Destination URL' })
@@ -14,6 +28,11 @@ export class CreateUrlDto {
     message: 'customAlias can only contain letters, numbers, hyphens, and underscores',
   })
   customAlias?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Whether to also generate a QR code for this link' })
+  @IsBoolean()
+  @IsOptional()
+  generateQrCode?: boolean;
 
   @ApiPropertyOptional({ example: '2030-12-31T23:59:59.000Z', description: 'Optional expiration timestamp' })
   @IsDateString({}, { message: 'expiresAt must be a valid ISO 8601 date string' })
@@ -35,9 +54,27 @@ export class CreateUrlDto {
   @IsOptional()
   title?: string;
 
-  @ApiPropertyOptional({ example: ['marketing', 'promo'], description: 'Optional tags for categorization' })
+  @ApiPropertyOptional({
+    example: ['promo', 'sale24'],
+    description: 'Optional tags for categorization (max 10 tags, max 7 chars each)',
+  })
   @IsOptional()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+          .map((t) => (typeof t === 'string' ? t.replace(/[^a-zA-Z0-9_-]/g, '').trim().slice(0, 7) : t))
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray({ message: 'tags must be an array of strings' })
+  @ArrayMaxSize(10, { message: 'A link cannot have more than 10 tags' })
   @IsString({ each: true })
+  @MaxLength(7, { each: true, message: 'Each tag cannot exceed 7 characters' })
+  @MinLength(1, { each: true, message: 'Tag cannot be empty' })
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    each: true,
+    message: 'Tags can only contain alphanumeric characters, hyphens, and underscores',
+  })
   tags?: string[];
 
   @ApiPropertyOptional({ example: 'secret123', description: 'Optional password protection' })

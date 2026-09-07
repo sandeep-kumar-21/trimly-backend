@@ -4,6 +4,7 @@ import { Campaign, CampaignSchema } from './schemas/campaign.schema';
 import { Url, UrlSchema } from '../url/schemas/url.schema';
 import { CampaignsService } from './campaigns.service';
 import { CampaignsController } from './campaigns.controller';
+import { UrlModule } from '../url/url.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { CampaignsController } from './campaigns.controller';
       { name: Campaign.name, schema: CampaignSchema },
       { name: Url.name, schema: UrlSchema },
     ]),
+    UrlModule,
   ],
   providers: [CampaignsService],
   controllers: [CampaignsController],

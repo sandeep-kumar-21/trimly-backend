@@ -8,11 +8,16 @@ import { Campaign } from './schemas/campaign.schema';
 import { Url } from '../url/schemas/url.schema';
 import { REDIS_CLIENT } from '../../common/redis/redis.provider';
 
+import { UrlService } from '../url/url.service';
+import { UrlMetadataQueue } from '../queue/url-metadata.queue';
+
 describe('CampaignsService', () => {
   let service: CampaignsService;
   let campaignModelMock: any;
   let urlModelMock: any;
   let redisMock: any;
+  let urlServiceMock: any;
+  let urlMetadataQueueMock: any;
 
   const mockUserId = new Types.ObjectId().toString();
   const mockCampaignId = new Types.ObjectId().toString();
@@ -41,6 +46,15 @@ describe('CampaignsService', () => {
       updateMany: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ modifiedCount: 2 }) }),
     };
 
+    urlServiceMock = {
+      create: jest.fn(),
+      shortUrlBase: 'http://localhost:4000',
+    };
+
+    urlMetadataQueueMock = {
+      addMetadataJob: jest.fn(),
+    };
+
     redisMock = {
       get: jest.fn().mockResolvedValue(null),
       setex: jest.fn().mockResolvedValue('OK'),
@@ -52,6 +66,8 @@ describe('CampaignsService', () => {
         CampaignsService,
         { provide: getModelToken(Campaign.name), useValue: campaignModelMock },
         { provide: getModelToken(Url.name), useValue: urlModelMock },
+        { provide: UrlService, useValue: urlServiceMock },
+        { provide: UrlMetadataQueue, useValue: urlMetadataQueueMock },
         { provide: REDIS_CLIENT, useValue: redisMock },
         {
           provide: ConfigService,
@@ -138,7 +154,8 @@ describe('CampaignsService', () => {
     expect(details.campaign.name).toBe('Summer Promo');
     expect(details.totalClicks).toBe(200);
     expect(details.totalLinks).toBe(3);
-    expect(details.channels).toHaveLength(2);
+    expect(details.channels).toHaveLength(4);
+    expect(details.channels.filter((c: any) => c.totalLinks > 0)).toHaveLength(2);
     expect(details.channels[0].channel).toBe('email');
     expect(details.channels[0].totalClicks).toBe(120);
     expect(details.channels[0].links[0].shortUrl).toBe('http://localhost:4000/email1');
@@ -177,7 +194,7 @@ describe('CampaignsService', () => {
     const res = await service.deleteCampaign(mockCampaignId, mockUserId);
     expect(urlModelMock.updateMany).toHaveBeenCalledWith(
       { campaignId: new Types.ObjectId(mockCampaignId), userId: new Types.ObjectId(mockUserId) },
-      { $set: { campaignId: null } },
+      { $set: { campaignId: null, channel: null } },
     );
     expect(res.message).toContain('unlinked');
   });

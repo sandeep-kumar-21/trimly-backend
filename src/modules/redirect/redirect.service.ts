@@ -45,6 +45,14 @@ export class RedirectService implements OnModuleDestroy {
     reqIp: string,
     referrer: string | null,
     userAgent: string | null,
+    isQrScan?: boolean,
+    utms?: {
+      utmSource?: string | null;
+      utmMedium?: string | null;
+      utmCampaign?: string | null;
+      utmTerm?: string | null;
+      utmContent?: string | null;
+    },
   ): Promise<string | { passwordProtected: true; redirectUrl: string }> {
     const cacheKey = `url:${shortCode}`;
     const protectedRedirectUrl = `${this.frontendUrl}/protected/${shortCode}`;
@@ -106,6 +114,12 @@ export class RedirectService implements OnModuleDestroy {
       ipHash,
       rawIp: reqIp,
       country: null,
+      isQrScan: Boolean(isQrScan),
+      utmSource: utms?.utmSource || null,
+      utmMedium: utms?.utmMedium || null,
+      utmCampaign: utms?.utmCampaign || null,
+      utmTerm: utms?.utmTerm || null,
+      utmContent: utms?.utmContent || null,
     });
 
     return longUrl;

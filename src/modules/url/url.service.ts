@@ -21,6 +21,7 @@ import { BulkTagsDto } from './dto/bulk-tags.dto';
 import { BulkHideDto } from './dto/bulk-hide.dto';
 import { Base62Util } from '../../common/utils/base62.util';
 import { REDIS_CLIENT } from '../../common/redis/redis.provider';
+import { UrlMetadataQueue } from '../queue/url-metadata.queue';
 
 @Injectable()
 export class UrlService {
@@ -31,6 +32,7 @@ export class UrlService {
     @InjectConnection() private readonly connection: Connection,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly configService: ConfigService,
+    private readonly urlMetadataQueue: UrlMetadataQueue,
   ) {}
 
   private get baseUrl(): string {
@@ -79,10 +81,27 @@ export class UrlService {
     return longUrl.includes('?') ? `${longUrl}&${queryString}` : `${longUrl}?${queryString}`;
   }
 
+  private sanitizeTags(rawTags?: string[]): string[] {
+    if (!rawTags || !Array.isArray(rawTags)) return [];
+    const seen = new Set<string>();
+    const sanitized: string[] = [];
+
+    for (const raw of rawTags) {
+      if (typeof raw !== 'string') continue;
+      const clean = raw.replace(/[^a-zA-Z0-9_-]/g, '').trim().slice(0, 7);
+      if (clean.length > 0 && !seen.has(clean.toLowerCase())) {
+        seen.add(clean.toLowerCase());
+        sanitized.push(clean);
+        if (sanitized.length >= 10) break;
+      }
+    }
+    return sanitized;
+  }
+
   async createUrl(
     createUrlDto: CreateUrlDto,
     userId?: string | null,
-    options?: { visibleAsLink?: boolean; session?: ClientSession },
+    options?: { visibleAsLink?: boolean; session?: ClientSession; skipAutoTitleScrape?: boolean },
   ) {
     const {
       longUrl,
@@ -113,7 +132,7 @@ export class UrlService {
       }
       shortCode = customAlias;
     } else {
-      const counterOptions: any = { upsert: true, new: true, setDefaultsOnInsert: true };
+      const counterOptions: any = { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true };
       if (options?.session) {
         counterOptions.session = options.session;
       }
@@ -139,12 +158,36 @@ export class UrlService {
     }
 
     const visibleAsLink = options?.visibleAsLink !== undefined ? options.visibleAsLink : true;
+    const hasCustomTitle = Boolean(title && title.trim().length > 0);
+
+    let savedQr: any = null;
+    if (createUrlDto.generateQrCode) {
+      const qrCode = new this.qrCodeModel({
+        shortCode,
+        longUrl: finalLongUrl,
+        userId: userId ? new Types.ObjectId(userId) : null,
+        title: hasCustomTitle ? title!.trim() : null,
+        tags: this.sanitizeTags(tags),
+        qrConfig: {
+          pattern: 'p1',
+          corner: 'c1',
+          presetColor: '#000000',
+          codeColor: '#000000',
+          bgColor: '#FFFFFF',
+          useQrColorForCorners: true,
+          logoOption: 'none',
+        },
+      });
+      savedQr = options?.session
+        ? await qrCode.save({ session: options.session })
+        : await qrCode.save();
+    }
 
     const createdUrl = new this.urlModel({
       shortCode,
       longUrl: finalLongUrl,
-      title: title || null,
-      tags: tags || [],
+      title: hasCustomTitle ? title!.trim() : null,
+      tags: this.sanitizeTags(tags),
       passwordHash,
       utmSource: utmSource || null,
       utmMedium: utmMedium || null,
@@ -156,12 +199,32 @@ export class UrlService {
       channel: channel ? channel.toLowerCase() : null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
       visibleAsLink,
-      hasQR: false,
-      qrCodeId: null,
+      hasQR: Boolean(createUrlDto.generateQrCode),
+      qrCodeId: savedQr ? savedQr._id : null,
       isCustomAlias,
     });
 
     const saved = options?.session ? await createdUrl.save({ session: options.session }) : await createdUrl.save();
+
+    // Auto Title Generation: Only queue background title scraping if the user did NOT set a title themselves and not skipped by batch caller
+    if (!hasCustomTitle && !options?.skipAutoTitleScrape) {
+      await this.urlMetadataQueue.addScrapeTitleJob({
+        shortCode,
+        longUrl: finalLongUrl,
+      });
+    }
+
+    // Invalidate campaign cache if link belongs to a campaign
+    if (campaignId && userId) {
+      try {
+        await this.redis.del(
+          `campaign:${campaignId}`,
+          `campaigns:${userId}`,
+          `campaign-channels:${userId}`,
+        );
+      } catch {}
+    }
+
     return this.formatUrlResponse(saved);
   }
 
@@ -220,6 +283,8 @@ export class UrlService {
       throw new ForbiddenException('You do not have permission to modify this short URL');
     }
 
+    const previousCampaignId = urlDoc.campaignId;
+
     if (updateUrlDto.longUrl !== undefined) {
       urlDoc.longUrl = updateUrlDto.longUrl;
     }
@@ -243,7 +308,7 @@ export class UrlService {
     }
 
     if (updateUrlDto.tags !== undefined) {
-      urlDoc.tags = updateUrlDto.tags || [];
+      urlDoc.tags = this.sanitizeTags(updateUrlDto.tags);
     }
 
     if (updateUrlDto.password !== undefined) {
@@ -264,9 +329,19 @@ export class UrlService {
 
     const updated = await urlDoc.save();
 
-    // Cache Invalidation: DEL url:{shortCode} entry in Redis so stale redirect target is immediately cleared upon update
+    // Cache Invalidation: DEL url:{shortCode} entry and related campaign caches
     try {
-      await this.redis.del(`url:${shortCode}`);
+      const keysToDel = [`url:${shortCode}`];
+      if (updated.campaignId) {
+        keysToDel.push(`campaign:${updated.campaignId.toString()}`);
+      }
+      if (previousCampaignId && previousCampaignId.toString() !== updated.campaignId?.toString()) {
+        keysToDel.push(`campaign:${previousCampaignId.toString()}`);
+      }
+      if (userId) {
+        keysToDel.push(`campaigns:${userId}`, `campaign-channels:${userId}`);
+      }
+      await this.redis.del(...keysToDel);
     } catch (err: any) {
       // Non-blocking log warning if Redis flush fails
     }
@@ -284,6 +359,8 @@ export class UrlService {
       throw new ForbiddenException('You do not have permission to delete this short URL');
     }
 
+    const campaignId = urlDoc.campaignId;
+
     // Cascade delete linked QR code if present
     if (urlDoc.hasQR || urlDoc.qrCodeId) {
       await this.qrCodeModel.deleteOne({ shortCode }).exec();
@@ -298,9 +375,16 @@ export class UrlService {
 
     await this.urlModel.deleteOne({ _id: urlDoc._id }).exec();
 
-    // Cache Invalidation: DEL url:{shortCode} entry in Redis
+    // Cache Invalidation: DEL url:{shortCode} and related campaign caches
     try {
-      await this.redis.del(`url:${shortCode}`);
+      const keysToDel = [`url:${shortCode}`];
+      if (campaignId) {
+        keysToDel.push(`campaign:${campaignId.toString()}`);
+      }
+      if (userId) {
+        keysToDel.push(`campaigns:${userId}`, `campaign-channels:${userId}`);
+      }
+      await this.redis.del(...keysToDel);
     } catch (err: any) {}
 
     return { message: 'Short URL and any linked QR code successfully deleted' };
@@ -332,36 +416,34 @@ export class UrlService {
     userId: string,
     dto: EditBackHalfDto,
   ) {
+    const newAlias = dto.customAlias.trim();
+
+    // Find original URL and verify ownership
     const sourceUrl = await this.urlModel.findOne({ shortCode: sourceCode }).exec();
     if (!sourceUrl) {
       throw new NotFoundException('Source short URL not found');
     }
-
-    if (!sourceUrl.userId || sourceUrl.userId.toString() !== userId) {
+    if (sourceUrl.userId && sourceUrl.userId.toString() !== userId) {
       throw new ForbiddenException('You do not have permission to modify this short URL');
     }
 
-    const newAlias = dto.customAlias.trim();
-    if (!newAlias) {
-      throw new BadRequestException('Custom alias cannot be empty');
-    }
-
+    // If alias hasn't changed, perform an in-place update
     if (newAlias === sourceCode) {
-      // If alias did not change, update in-place
-      return this.updateUrl(sourceCode, {
+      const updatedUrl = await this.updateUrl(sourceCode, {
         longUrl: dto.longUrl,
         title: dto.title,
         tags: dto.tags,
       }, userId);
+      return updatedUrl;
     }
 
-    // Check custom alias availability
+    // Check if new alias already exists
     const existing = await this.urlModel.findOne({ shortCode: newAlias }).exec();
     if (existing) {
-      throw new ConflictException('Custom alias is already taken');
+      throw new ConflictException('Custom back-half is already in use. Please choose another.');
     }
 
-    // Copy all source document fields server-side (prevents missing campaign, channel, expiresAt, UTM fields, etc.)
+    // Create new URL document with the new alias, preserving previous stats & fields
     const sourceObj = sourceUrl.toObject();
     delete (sourceObj as any)._id;
     delete (sourceObj as any).createdAt;
@@ -374,7 +456,7 @@ export class UrlService {
       isCustomAlias: true,
       longUrl: dto.longUrl !== undefined ? dto.longUrl : sourceUrl.longUrl,
       title: dto.title !== undefined ? (dto.title || null) : sourceUrl.title,
-      tags: dto.tags !== undefined ? (dto.tags || []) : sourceUrl.tags,
+      tags: dto.tags !== undefined ? this.sanitizeTags(dto.tags) : sourceUrl.tags,
       clickCount: 0,
       visibleAsLink: true,
       createdAt: new Date(),
@@ -423,10 +505,13 @@ export class UrlService {
 
     // Perform updates
     if (addTags && addTags.length > 0) {
-      await this.urlModel.updateMany(
-        { _id: { $in: objectIds } },
-        { $addToSet: { tags: { $each: addTags } } }
-      ).exec();
+      const sanitizedAddTags = this.sanitizeTags(addTags);
+      if (sanitizedAddTags.length > 0) {
+        await this.urlModel.updateMany(
+          { _id: { $in: objectIds } },
+          { $addToSet: { tags: { $each: sanitizedAddTags } } }
+        ).exec();
+      }
     }
 
     if (removeTags && removeTags.length > 0) {

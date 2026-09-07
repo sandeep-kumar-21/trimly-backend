@@ -5,7 +5,7 @@ export type CampaignDocument = Campaign & Document;
 
 @Schema({
   collection: 'campaigns',
-  timestamps: { createdAt: true, updatedAt: false },
+  timestamps: true,
 })
 export class Campaign {
   _id: Types.ObjectId;
@@ -19,8 +19,16 @@ export class Campaign {
   @Prop({ type: String, default: null, trim: true })
   description: string | null;
 
+  @Prop({ type: [String], default: ['email', 'social', 'sms', 'paid'] })
+  channels: string[];
+
   @Prop({ type: Date, default: Date.now })
   createdAt: Date;
+
+  @Prop({ type: Date, default: Date.now })
+  updatedAt: Date;
 }
 
 export const CampaignSchema = SchemaFactory.createForClass(Campaign);
+
+CampaignSchema.index({ userId: 1, createdAt: -1 });

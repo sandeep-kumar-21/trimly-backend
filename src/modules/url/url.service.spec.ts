@@ -7,6 +7,7 @@ import { Url } from './schemas/url.schema';
 import { QrCode } from '../qrcodes/schemas/qrcode.schema';
 import { Counter } from '../../database/counter.schema';
 import { REDIS_CLIENT } from '../../common/redis/redis.provider';
+import { UrlMetadataQueue } from '../queue/url-metadata.queue';
 
 describe('UrlService', () => {
   let service: UrlService;
@@ -56,12 +57,16 @@ describe('UrlService', () => {
         { provide: getConnectionToken(), useValue: { startSession: jest.fn() } },
         { provide: REDIS_CLIENT, useValue: redisMock },
         {
+          provide: UrlMetadataQueue,
+          useValue: { addScrapeTitleJob: jest.fn() },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultVal?: string) => {
+              if (key === 'BASE_URL') return 'http://localhost:3000';
               if (key === 'SHORT_URL_BASE') return 'http://localhost:4000';
-              if (key === 'BASE_URL') return 'http://localhost:4000';
-              return defaultVal;
+              return defaultVal || 'http://localhost:3000';
             }),
           },
         },
@@ -137,6 +142,6 @@ describe('UrlService', () => {
 
     await service.updateUrl('upd123', { longUrl: 'https://new.com' }, 'user1');
 
-    expect(redisMock.del).toHaveBeenCalledWith('url:upd123');
+    expect(redisMock.del).toHaveBeenCalledWith('url:upd123', expect.anything(), expect.anything());
   });
 });

@@ -26,12 +26,22 @@ export class RedirectController {
       : req.socket.remoteAddress || '127.0.0.1';
     const referrer = req.get('referer') || req.get('referrer') || null;
     const userAgent = req.get('user-agent') || null;
+    const isQrScan = req.query?.qr === '1' || req.query?.scan === '1' || req.query?.source === 'qr';
+    const utms = {
+      utmSource: req.query?.utm_source || null,
+      utmMedium: req.query?.utm_medium || null,
+      utmCampaign: req.query?.utm_campaign || null,
+      utmTerm: req.query?.utm_term || null,
+      utmContent: req.query?.utm_content || null,
+    };
 
     const result = await this.redirectService.getLongUrlAndLogClick(
       code,
       clientIp,
       referrer,
       userAgent,
+      isQrScan,
+      utms,
     );
 
     if (typeof result === 'object' && result.passwordProtected) {

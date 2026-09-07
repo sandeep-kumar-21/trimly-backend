@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 import { CampaignsService } from './campaigns.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
+import { AddCampaignLinksDto } from './dto/add-campaign-links.dto';
+import { AssignExistingLinksDto } from './dto/assign-existing-links.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { GetUser } from '../../common/decorators/get-user.decorator';
 
@@ -27,10 +29,18 @@ export class CampaignsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all campaigns created by the authenticated user' })
-  @ApiResponse({ status: 200, description: 'Returns list of user campaigns.' })
+  @ApiResponse({ status: 200, description: 'Returns list of user campaigns with aggregated metrics.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getUserCampaigns(@GetUser('userId') userId: string) {
     return this.campaignsService.getUserCampaigns(userId);
+  }
+
+  @Get('channels/all')
+  @ApiOperation({ summary: 'Get all distinct marketing channels used by the authenticated user' })
+  @ApiResponse({ status: 200, description: 'Returns array of channel names.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getUserChannels(@GetUser('userId') userId: string) {
+    return this.campaignsService.getUserChannels(userId);
   }
 
   @Get(':id')
@@ -47,7 +57,7 @@ export class CampaignsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update campaign name or description' })
+  @ApiOperation({ summary: 'Update campaign name, description, or channels' })
   @ApiParam({ name: 'id', description: 'Campaign ObjectId' })
   @ApiResponse({ status: 200, description: 'Campaign updated successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -72,5 +82,51 @@ export class CampaignsController {
     @GetUser('userId') userId: string,
   ) {
     return this.campaignsService.deleteCampaign(id, userId);
+  }
+
+  @Post(':id/links')
+  @ApiOperation({ summary: 'Batch generate short links across selected marketing channels with automated UTM tracking' })
+  @ApiParam({ name: 'id', description: 'Campaign ObjectId' })
+  @ApiResponse({ status: 201, description: 'Multi-channel links generated successfully.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Campaign not found.' })
+  async addCampaignLinksBatch(
+    @Param('id') id: string,
+    @Body() addCampaignLinksDto: AddCampaignLinksDto,
+    @GetUser('userId') userId: string,
+  ) {
+    return this.campaignsService.addCampaignLinksBatch(id, addCampaignLinksDto, userId);
+  }
+
+  @Post(':id/assign-links')
+  @ApiOperation({ summary: 'Assign existing short links to this campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ObjectId' })
+  @ApiResponse({ status: 200, description: 'Links assigned to campaign successfully.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Campaign not found.' })
+  async assignExistingLinks(
+    @Param('id') id: string,
+    @Body() assignDto: AssignExistingLinksDto,
+    @GetUser('userId') userId: string,
+  ) {
+    return this.campaignsService.assignExistingLinks(id, assignDto, userId);
+  }
+
+  @Delete(':id/links/:linkId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlink a short link from this campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ObjectId' })
+  @ApiParam({ name: 'linkId', description: 'Link ObjectId' })
+  @ApiResponse({ status: 200, description: 'Link unlinked from campaign successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Link or Campaign not found.' })
+  async unlinkLinkFromCampaign(
+    @Param('id') id: string,
+    @Param('linkId') linkId: string,
+    @GetUser('userId') userId: string,
+  ) {
+    return this.campaignsService.unlinkLinkFromCampaign(id, linkId, userId);
   }
 }

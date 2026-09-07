@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateCampaignDto {
   @ApiProperty({ example: 'Summer Marketing 2026', description: 'Name of the campaign' })
@@ -13,4 +13,13 @@ export class CreateCampaignDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @ApiPropertyOptional({
+    example: ['email', 'social', 'sms'],
+    description: 'Optional list of marketing channels for this campaign',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  channels?: string[];
 }

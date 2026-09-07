@@ -10,6 +10,12 @@ export interface ClickJobData {
   ipHash: string;
   rawIp?: string | null;
   country: string | null;
+  isQrScan?: boolean;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmTerm?: string | null;
+  utmContent?: string | null;
 }
 
 @Injectable()
