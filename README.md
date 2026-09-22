@@ -12,13 +12,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
-**Frontend Repository**: [Trimly Frontend (Next.js 16)](https://github.com/sandeep-kumar-21/trimly-frontend)
+**Related Repositories**:
+- **Frontend**: [Trimly Frontend (Next.js 16)](https://github.com/sandeep-kumar-21/trimly-frontend)
+- **Spring Boot Java Backend**: [Trimly Backend Java v2 (Spring Boot 4.1.1 / Java 25 LTS / PostgreSQL 16 / Redis 7 / Spring Security 7 / Docker / JUnit 5)](https://github.com/sandeep-kumar-21/trimly-backend-java-v2)
 
 ---
 
 ## Table of Contents
 
 - [About the Project](#about-the-project)
+- [Screenshots & UI Preview](#screenshots--ui-preview)
 - [Key Features](#key-features)
 - [Tech Stack](#tech-stack)
 - [Engineering Highlights](#engineering-highlights)
@@ -52,9 +55,38 @@ Trimly centers around **four core functional pillars**:
 
 ---
 
+## Screenshots & UI Preview
+
+| 01. Analytics KPI & Engagement Time-Series | 02. Real-Time Live Activity Stream (SSE) |
+| :---: | :---: |
+| <img src="public/images/01-analytics-kpi-timeseries.png" alt="01 - Analytics KPI and Timeseries" width="100%" /> | <img src="public/images/02-analytics-live-telemetry-sse.png" alt="02 - Real-Time Live Activity Stream" width="100%" /> |
+| **01. Analytics KPI & Engagement Time-Series**<br>Interactive analytics overview displaying top-level metrics (Total Engagements, Unique Audience, QR Scans vs. Web traffic ratio, and Top Performing Driver) paired with a responsive Recharts engagement time-series area chart supporting custom filtering windows (Today, 7D, 30D, 90D, Custom Range). | **02. Real-Time Live Activity Stream (SSE Telemetry)**<br>Real-time Server-Sent Events (SSE) telemetry feed showing live incoming web clicks and QR scans with instantaneous client updates, device environment identification (OS, Desktop/Mobile), referring URLs, geographic locations, and sliding window telemetry buffers. |
+
+| 03. Inbound Traffic Sources & Device Distribution | 04. Geographic Intelligence & UTM Attribution |
+| :---: | :---: |
+| <img src="public/images/03-analytics-sources-device-distribution.png" alt="03 - Inbound Traffic Sources and Device Distribution" width="100%" /> | <img src="public/images/04-analytics-geo-cities-utm-tracking.png" alt="04 - Geographic Intelligence and UTM Tracking" width="100%" /> |
+| **03. Inbound Traffic Sources & Device Distribution**<br>Deep analytics breakdown showcasing top inbound referral channels (Google, LinkedIn, Twitter, GitHub, Direct) alongside device hardware distribution donuts (Desktop, Mobile, Tablet) and OS software breakdown (macOS, iOS, Windows). | **04. Geographic Intelligence & UTM Attribution**<br>Granular geographic intelligence highlighting visitor traffic by metropolitan city (San Francisco, Bengaluru, Mumbai, Paris, London) alongside web browser market share (Chrome, Safari, Firefox, Edge) and multi-touch UTM parameter campaign tracking. |
+
+| 05. Branded QR Code Customizer Studio | 06. QR Code Deep Dive & Dynamic Routing |
+| :---: | :---: |
+| <img src="public/images/05-qr-code-studio-customizer.png" alt="05 - Branded QR Code Customizer Studio" width="100%" /> | <img src="public/images/06-qr-code-details-dynamic-routing.png" alt="06 - QR Code Details and Dynamic Routing" width="100%" /> |
+| **05. Branded QR Code Customizer Studio**<br>Interactive 2-step customization studio featuring custom dot matrix patterns, corner eye styling, curated color palettes, custom hex pickers, and real-time scannability contrast verification to prevent unreadable QR codes. | **06. QR Code Details & Dynamic Routing**<br>In-depth single QR overview screen displaying target destination, short link alias, server-authoritative vector SVG preview, multi-format exports (SVG, PNG, JPEG), and rule-based dynamic routing configurations by device or location. |
+
+| 07. QR Code Gallery & Batch Management | 08. Multi-Channel Marketing Campaigns Matrix |
+| :---: | :---: |
+| <img src="public/images/07-qr-code-gallery-management.png" alt="07 - QR Code Gallery and Batch Management" width="100%" /> | <img src="public/images/08-campaigns-overview-matrix.png" alt="08 - Multi-Channel Marketing Campaigns Matrix" width="100%" /> |
+| **07. QR Code Gallery & Batch Management**<br>Unified gallery view of all user-generated QR codes featuring server-rendered SVG previews, total scan counts, creation dates, destination target URLs, tag organization, and quick download/edit action menus. | **08. Multi-Channel Marketing Campaigns Matrix**<br>Omnichannel marketing campaign hub organizing short links into structured campaigns (Email, Social, SMS, Paid, Influencer, Community) with aggregated link counts, total clicks, and automated top-performing channel badges. |
+
+| 09. Campaign Attribution & Channel Breakdown | 10. Home Dashboard & Quick Create Workflow |
+| :---: | :---: |
+| <img src="public/images/09-campaign-deepdive-attribution.png" alt="09 - Campaign Attribution and Channel Breakdown" width="100%" /> | <img src="public/images/10-home-dashboard-quick-create.png" alt="10 - Home Dashboard and Quick Create" width="100%" /> |
+| **09. Campaign Attribution & Channel Breakdown Deep Dive**<br>Detailed campaign attribution view breaking down total campaign links, overall click volume, active channel touchpoints, top-performing channels (e.g., YouTube), and channel-specific click share attribution progress bars. | **10. Home Dashboard & Quick Create Workflow**<br>Streamlined workspace home view featuring the quick URL shortening bar with optional QR code attachment, monthly allowance quota tracker, quick link/click summary metrics, and an interactive onboarding progress checklist. |
+
+---
+
 ## Key Features
 
-### ⚡ Core Redirection & Link Lifecycle
+### Core Redirection & Link Lifecycle
 - **Sub-50ms Redirect Pipeline**: Redis cache-first lookup on `GET /:code` bypassing database overhead on the hot path.
 - **Base62 Sequential Token Generator**: Atomic MongoDB counter allocation transformed into short Base62 identifiers (`62^6` combinations for 6-character codes).
 - **Custom Back-Half Aliases & Clones**: Custom slug reservations with collision detection and server-side source-cloning for back-half iterations.
@@ -62,24 +94,24 @@ Trimly centers around **four core functional pillars**:
 - **Link Expiration Engine**: Configurable TTL expiration with automated 404 responses for expired links.
 - **Bulk Operations**: Multi-link tagging, tag stripping, and bulk hiding/unhiding in single atomic operations.
 
-### 🎨 Branded QR Code Studio
+### Branded QR Code Studio
 - **Server-Authoritative Rendering**: Server-side vector SVG and high-resolution raster PNG (1000x1000px) generation using `node-canvas` and `jsdom`.
 - **Custom Design Patterns**: Multiple dot styles (`square`, `dots`, `rounded`, `classy`, `extra-rounded`), corner square styles, corner dot styles, and color combinations.
 - **Branded Center Logos & Contrast Validation**: Automatic Error Correction Level escalation to `Level H` (30% recovery) when embedding center logos.
 - **Scoped SVG Namespacing**: Dynamic SVG element ID scoping (`id="pattern_{shortCode}"`) to avoid gradient and mask collisions in multi-QR DOM lists.
 - **QR Design Duplication**: Duplicate design configurations across short codes seamlessly.
 
-### 📊 Asynchronous Telemetry & Analytics
+### Asynchronous Telemetry & Analytics
 - **Non-Blocking Telemetry Ingestion**: Click events dispatched to BullMQ queues without delaying HTTP 302 redirects.
 - **Privacy-Preserving Hashing**: Client IPs are hashed via SHA-256 with country-level geo-resolution via `geoip-lite`.
 - **User-Agent Classification**: Device type (`Desktop`, `Mobile`, `Tablet`) and browser engine identification via `ua-parser-js`.
 - **Aggregated Metric Dimensions**: Time-series clicks, top referrers, device breakdowns, browser distributions, and geographic hot-spots.
 
-### 📁 Campaigns & Attribution
+### Campaigns & Attribution
 - **Channel-Level Grouping**: Organize links by marketing channels (`email`, `social`, `sms`, `ads`, `other`).
 - **Attribution Aggregation**: MongoDB aggregation pipeline computing total clicks and performance across channels with a 120s Redis cache buffer.
 
-### 🛡️ Security & Account Lifecycle
+### Security & Account Lifecycle
 - **JWT Authentication**: Passport-JWT authentication with Bearer token validation and `httpOnly` cookie support.
 - **Brute-Force Rate Limiting**: Global and per-route rate limiting via `@nestjs/throttler` (e.g. 10 attempts/min on password verification).
 - **Asynchronous Data Export**: Background BullMQ worker bundling complete user records, campaigns, links, and click history into downloadable JSON.
